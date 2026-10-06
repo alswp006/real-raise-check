@@ -123,8 +123,9 @@ export function mockTds() {
     );
 
     return {
-      Button: ({ children, onClick, ...props }: any) =>
-        h("button", { onClick, ...props }, children),
+      // loading은 벤더 ButtonProps(boolean) — DOM 속성으로 흘리면 React 경고가 나므로 disabled + data-loading으로 표현한다.
+      Button: ({ children, onClick, loading, disabled, display, ...props }: any) =>
+        h("button", { onClick, disabled: disabled || loading || undefined, "data-loading": loading ? "true" : undefined, "data-display": display, ...props }, children),
 
       // SubmitFooter(BottomCTA.tsx)의 기반 — 스텁이 없으면 SubmitFooter를 렌더하는 테스트가
       // undefined 엘리먼트로 죽는다(적대 리뷰 2026-08-30 실측). loading은 disabled로 표현해
