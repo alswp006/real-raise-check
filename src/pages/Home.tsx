@@ -144,7 +144,7 @@ export default function Home() {
           right={
             <Button
               variant="weak"
-              size="medium"
+              size="small"
               color="dark"
               aria-label="전체 지우기"
               disabled={!hasAnyInput}
@@ -172,7 +172,7 @@ export default function Home() {
         const isLast = idx === years.length - 1;
         return (
           <div key={year}>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)", gap: 8, alignItems: "start", margin: "0 -16px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)", gap: 8, alignItems: "start" }}>
                 <TextField
                   variant="box"
                   labelOption="sustain"
@@ -205,7 +205,7 @@ export default function Home() {
           </div>
         );
       })}
-      <Spacing size={160} />
+      <Spacing size={120} />
       <AlertDialog
         open={clearOpen}
         title="입력한 연봉을 모두 지울까요?"
