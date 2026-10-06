@@ -20,37 +20,44 @@ describe("Types & Constants (packet-0001)", () => {
   describe("AC-1: Type exports", () => {
     it("AC-1[P0]: should export SalaryEntry type", () => {
       type TestType = SalaryEntry;
-      expect(TestType).toBeDefined();
+      const probe: TestType | undefined = undefined;
+      expect(probe).toBeUndefined();
     });
 
     it("AC-1[P0]: should export CpiData type", () => {
       type TestType = CpiData;
-      expect(TestType).toBeDefined();
+      const probe: TestType | undefined = undefined;
+      expect(probe).toBeUndefined();
     });
 
     it("AC-1[P0]: should export PairRow type", () => {
       type TestType = PairRow;
-      expect(TestType).toBeDefined();
+      const probe: TestType | undefined = undefined;
+      expect(probe).toBeUndefined();
     });
 
     it("AC-1[P0]: should export AppResult type", () => {
       type TestType = AppResult;
-      expect(TestType).toBeDefined();
+      const probe: TestType | undefined = undefined;
+      expect(probe).toBeUndefined();
     });
 
     it("AC-1[P0]: should export AmountInputResult type", () => {
       type TestType = AmountInputResult;
-      expect(TestType).toBeDefined();
+      const probe: TestType | undefined = undefined;
+      expect(probe).toBeUndefined();
     });
 
     it("AC-1[P0]: should export SaveResult type", () => {
       type TestType = SaveResult;
-      expect(TestType).toBeDefined();
+      const probe: TestType | undefined = undefined;
+      expect(probe).toBeUndefined();
     });
 
     it("AC-1[P0]: should export LoadResult type", () => {
       type TestType = LoadResult;
-      expect(TestType).toBeDefined();
+      const probe: TestType | undefined = undefined;
+      expect(probe).toBeUndefined();
     });
   });
 
