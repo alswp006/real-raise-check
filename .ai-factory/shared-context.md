@@ -150,6 +150,8 @@ export type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };
     calculator.test.ts
     calculator.ts
     contract.ts
+    entriesStore.test.ts
+    entriesStore.ts
     review.ts
     share.ts
     storage.ts
@@ -170,6 +172,7 @@ export type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };
 - analytics.ts: export type LogFields = Record<string, string | number | boolean | null>; export const DWELL_MS = 3000; export function fireAndForget(call: () => unknown): void; export function logScreen(page: string, extra?: LogFields): void; export function logClick(name: string, extra?: LogFields): void; export function logImpression(name: string, extra?: LogFields): void; export function useScreenLog(page: string): void
 - calculator.ts: export function calculate(entries: SalaryEntry[], cpi: CpiData, currentYear: number): AppResult; export function parseAmountInput(raw: string): AmountInputResult; export function validateAmount(amountMan: number): boolean; export function formatSignedPct(pct: number): string
 - contract.ts: export type SalaryEntry =; export type CpiData =; export type PairRow =; export type AppResult =; export type AmountInputResult =; export type SaveResult =; export type LoadResult =; export type getSlotYearsFn = () => number[]
+- entriesStore.ts: export function load(): LoadResult; export function save(entries: SalaryEntry[]): SaveResult; export function clear(): SaveResult; export function __resetForTest(): void
 - review.ts: export function requestReviewOnce(key: string = REVIEW_REQUESTED_KEY): void
 - share.ts: export interface ShareAppOptions; export async function shareApp(opts: ShareAppOptions): Promise<void>
 - storage.ts: export function getItem<T>(key: string): T | null; export function setItem<T>(key: string, value: T): void; export function removeItem(key: string): void
@@ -194,11 +197,13 @@ export type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };
 
 ### Module Dependencies (import graph)
   lib/calculator.ts → imports: lib/types
+  lib/entriesStore.ts → imports: data/cpi, lib/calculator, lib/types
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
 
 ## Already Implemented (do NOT duplicate or overwrite)
 - 0001: Types & Constants (types + CPI 번들) (files: src/lib/types.ts, src/data/cpi.ts)
 - 0002: Core Logic (계산기 순수 함수 + 테스트) (files: src/lib/calculator.ts, src/lib/calculator.test.ts, package.json)
+- 0003: entriesStore (localStorage + 메모리 사본) (files: src/lib/entriesStore.ts, src/lib/entriesStore.test.ts)
 
 ## Available exports from existing files
 // src/App.tsx
