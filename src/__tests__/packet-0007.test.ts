@@ -68,9 +68,9 @@ describe("Result Page (목표 연봉 + 비교 + 배너)", () => {
     expect(screen.getByText("올해(2026) 목표 연봉")).toBeInTheDocument();
     expect(screen.getAllByText(/46,410,000원/).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText(/작년 연봉 대비 \+5\.5% 인상 필요/)).toBeInTheDocument();
-    expect(screen.getByText("작년 구매력 유지선")).toBeInTheDocument();
+    expect(screen.getByText("물가만큼만 올리는 연봉")).toBeInTheDocument();
     expect(screen.getByText(/44,880,000원/)).toBeInTheDocument();
-    expect(screen.getByText("첫 해 구매력 회복선")).toBeInTheDocument();
+    expect(screen.getByText("첫 해 구매력을 되찾는 연봉")).toBeInTheDocument();
     expect(
       screen.getByText("올해 물가는 한국은행 물가안정목표 2%로 가정했어요 · 세전 기준 참고용"),
     ).toBeInTheDocument();

@@ -173,7 +173,7 @@ describe("공유 카드 (Canvas PNG + ShareCardButton)", () => {
     render(React.createElement(MemoryRouter, null, React.createElement(ShareCardButton, { result, showAmount: false })));
     fireEvent.click(screen.getByRole("button", { name: /공유 카드 저장/ }));
     await waitFor(() => expect(mockOpenToast).toHaveBeenCalledTimes(1));
-    expect(mockOpenToast).toHaveBeenCalledWith("이미지를 저장했어요");
+    expect(mockOpenToast).toHaveBeenCalledWith("이미지를 저장했어요. 입력한 연봉은 기기에 남아 있어요");
   });
 
   it("AC-5[P0]: AbortError는 Toast 0개, 그 밖의 예외는 실패 Toast 1회 + console.error 0회", async () => {
@@ -217,7 +217,7 @@ describe("공유 카드 (Canvas PNG + ShareCardButton)", () => {
     expect(vi.mocked(shareCardModule.renderShareCard).mock.calls[0][1]).toMatchObject({ showAmount: true });
 
     await act(async () => { release(new Blob(["png"], { type: "image/png" })); });
-    await waitFor(() => expect(mockOpenToast).toHaveBeenCalledWith("이미지를 저장했어요"));
+    await waitFor(() => expect(mockOpenToast).toHaveBeenCalledWith("이미지를 저장했어요. 입력한 연봉은 기기에 남아 있어요"));
     expect(shareCardModule.renderShareCard).toHaveBeenCalledTimes(1);
   });
 

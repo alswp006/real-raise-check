@@ -130,11 +130,11 @@ function ResultBody({
       />
       <Spacing size={8} />
       <ListRow
-        contents={<ListRow.Texts type="1RowTypeA" top="작년 구매력 유지선" />}
+        contents={<ListRow.Texts type="1RowTypeA" top="물가만큼만 올리는 연봉" />}
         right={<Paragraph.Text typography="t5">{won(r.keepLineWon)}</Paragraph.Text>}
       />
       <ListRow
-        contents={<ListRow.Texts type="1RowTypeA" top="첫 해 구매력 회복선" />}
+        contents={<ListRow.Texts type="1RowTypeA" top="첫 해 구매력을 되찾는 연봉" />}
         right={<Paragraph.Text typography="t5">{won(r.restoreLineWon)}</Paragraph.Text>}
       />
       <Spacing size={8} />
@@ -159,7 +159,7 @@ function ResultBody({
           contents={
             <ListRow.Texts
               type="2RowTypeA"
-              top={`첫 해(${r.firstYear}) 대비 구매력 ${formatSignedPct(r.cumulativeRealPct)}`}
+              top={`첫 해(${r.firstYear}) 대비 구매력 ${formatSignedPct(r.cumulativeRealPct)} (물가 뺀 실질)`}
               bottom={<span>명목 <span>{formatSignedPct(r.cumulativeNominalPct)}</span></span>}
             />
           }

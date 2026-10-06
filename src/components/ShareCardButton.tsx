@@ -28,7 +28,7 @@ export function ShareCardButton({ result, showAmount }: { result: AppResult; sho
     try {
       const blob = await renderShareCard(result, { showAmount, cpi });
       const outcome = await saveShareImage(blob);
-      if (outcome !== "aborted") openToast("이미지를 저장했어요");
+      if (outcome !== "aborted") openToast("이미지를 저장했어요. 입력한 연봉은 기기에 남아 있어요");
     } catch {
       openToast("저장하지 못했어요. 다시 시도해 주세요");
     } finally {
