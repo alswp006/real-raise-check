@@ -1,0 +1,360 @@
+[
+  {
+    "id": "0001",
+    "title": "Types & Constants (types + CPI 번들)",
+    "epic": "Epic 1: Data Layer",
+    "task": {
+      "description": "SPEC Data Model의 타입(SalaryEntry, CpiData, PairRow, AppResult, AmountInputResult, SaveResult)과 저장소 load 결과 타입 LoadResult를 src/lib/types.ts에 export한다. src/data/cpi.ts에는 통계청 KOSIS 소비자물가 연간 상승률 번들(2021~2025 초안), Home 연도 슬롯을 데이터에서 뽑는 getSlotYears(), 최신 확정 연도를 돌려주는 getLatestCpiYear()를 둔다. Route state는 쓰지 않는다(Result는 entriesStore에서 직접 읽는다).",
+      "acceptance_criteria": [
+        "src/lib/types.ts가 SalaryEntry, CpiData, PairRow, AppResult, AmountInputResult, SaveResult, LoadResult 7개 타입을 export하고 `npx tsc --noEmit`이 에러 0개로 통과한다",
+        "LoadResult는 `{ ok: true; entries: SalaryEntry[] } | { ok: false }`이고 AmountInputResult는 `{ accept: false } | { accept: true; value: number | null }`이다",
+        "cpi.source === '통계청 소비자물가지수 연간 상승률(KOSIS)', cpi.asOf === '2025년 연간'이고 rates가 2021:2.5, 2022:5.1, 2023:3.6, 2024:2.3, 2025:2.1 정확히 5개 항목이다",
+        "getSlotYears()는 rates의 최신 5개 연도를 오름차순으로 반환한다. 현재 데이터에서 [2021,2022,2023,2024,2025]를 반환하고, rates에 2026을 추가한 테스트 데이터에서는 [2022,2023,2024,2025,2026]을 반환한다",
+        "getLatestCpiYear()는 2025를 반환한다",
+        "cpi.ts 상단 주석에 '출시 전 KOSIS 원자료 대조 필요 · 2025 값 확인 필요 · 조회일: (미기입)' 문구가 있다. 프로젝트에서 연도 숫자 배열을 하드코딩한 곳은 cpi.ts의 rates 외에 0개다"
+      ]
+    },
+    "covers": [
+      "F1-AC-1",
+      "F2-AC-5"
+    ],
+    "files": [
+      "src/lib/types.ts",
+      "src/data/cpi.ts"
+    ],
+    "definition_of_done": [
+      "types.ts에 SPEC Data Model 6개 타입과 LoadResult가 SPEC 필드명 그대로 정의되어 있다",
+      "cpi.ts가 cpi(CpiData), getSlotYears, getLatestCpiYear를 export한다",
+      "getSlotYears와 getLatestCpiYear는 rates에서 계산하며 연도 상수를 쓰지 않는다",
+      "tsc --noEmit 에러 0개"
+    ],
+    "depends_on": [],
+    "db_schema": "N/A (정적 번들 데이터: cpi.rates = { year: number; ratePct: number }[] — 전년 대비 %)",
+    "api_contract": "// src/data/cpi.ts\nexport const cpi: CpiData;\nexport function getSlotYears(): number[]; // 최신 5개 연도, 오름차순\nexport function getLatestCpiYear(): number; // L\n// src/lib/types.ts\nexport type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };",
+    "dependencies": [],
+    "ui_requirements": "화면 없음. 출처 문구(F2-AC-5)는 cpi.source와 cpi.asOf로 Result에서 렌더된다: '출처: 통계청 소비자물가지수 연간 상승률(KOSIS) · {asOf} 기준'."
+  },
+  {
+    "id": "0002",
+    "title": "Core Logic (계산기 순수 함수 + 테스트)",
+    "epic": "Epic 2: Core Logic & Storage",
+    "task": {
+      "description": "src/lib/calculator.ts에 순수 함수 calculate(entries, cpi, currentYear), parseAmountInput, validateAmount, formatSignedPct를 만든다. 실질 인상률은 사이 연도 r_t를 연쇄해서 곱하고, 목표 연봉 A·B는 부동소수 오차를 보정한 뒤 만원 단위로 올린다. CPI는 인자로 주입한다. vitest 테스트로 SPEC 검증 예시(+1.4%, −3.3%, 46,410,000원, +5.5%), 빈 연도 연쇄, n=2, 입력 정제 케이스를 고정한다.",
+      "acceptance_criteria": [
+        "픽스처 r_2023=3.6에서 [{2022,4000},{2023,4200}]이면 rows[0]의 formatSignedPct(nominalPct)==='+5.0%', formatSignedPct(realPct)==='+1.4%'이다",
+        "픽스처 r(2022 5.1, 2023 3.6, 2024 2.3, 2025 2.1)에서 [{2021,4000},{2025,4400}], currentYear=2026이면 cumulativeRealPct→'−3.3%', cumulativeNominalPct→'+10.0%', keepLineWon===44880000, restoreLineWon===46410000, targetWon===46410000, requiredRaisePct→'+5.5%', staleYears===1이다",
+        "[{2021,4000},{2023,4400}]이면 rows 길이 1, gapYears===2이고 realPct = (1.1 ÷ (1.051×1.036) − 1)×100과 소수 6자리까지 같다",
+        "currentYear=2027(L=2025)이면 staleYears===2이고 A = S_last × 1.02²를 만원 올림한 값과 같다",
+        "A=4400×1.02처럼 정수에 가까운 값(4488.000000000001)은 4489가 아니라 4488만원(44,880,000원)으로 계산된다(1e-6 단위 반올림 뒤 Math.ceil)",
+        "parseAmountInput: '4,200'→{accept:true,value:4200}, '0042'→42, ''→{accept:true,value:null}, '4200.5'·'4$00'·'abc'·'-5000'·' 42'→{accept:false}",
+        "validateAmount: 0·100001·-1·4200.5→false, 1·100000→true",
+        "entries가 2개 미만이거나 필요한 연도의 rate가 cpi에 없으면 calculate가 Error를 throw한다. console.error 호출은 0회다",
+        "`npx vitest run src/lib/calculator.test.ts` 전부 통과"
+      ]
+    },
+    "covers": [
+      "F2-AC-1",
+      "F2-AC-3",
+      "F2-AC-6",
+      "F3-AC-1",
+      "F3-AC-2",
+      "AC-INPUT-2",
+      "AC-INPUT-3"
+    ],
+    "files": [
+      "src/lib/calculator.ts",
+      "src/lib/calculator.test.ts",
+      "package.json"
+    ],
+    "definition_of_done": [
+      "calculator.ts는 React와 localStorage를 import하지 않는 순수 함수 모듈이다",
+      "rows는 입력 연도를 오름차순 정렬한 뒤 이웃한 쌍마다 1행이고 fromMemo/toMemo가 채워진다",
+      "formatSignedPct는 소수점 1자리이며 0 이상이면 '+', 음수면 '−'(U+2212)를 붙인다. 반올림 결과가 0이면 '+0.0%'를 반환한다",
+      "vitest가 없으면 devDependency와 'test' 스크립트를 package.json에 추가한다. 다른 의존성은 바꾸지 않는다",
+      "테스트 전부 통과"
+    ],
+    "depends_on": [
+      "0001"
+    ],
+    "db_schema": "N/A",
+    "api_contract": "export function calculate(entries: SalaryEntry[], cpi: CpiData, currentYear: number): AppResult;\n// nominal = S_b/S_a − 1; real = (1+nominal)/Π_{t=a+1..b}(1+r_t/100) − 1 (% 단위로 저장)\n// cumulativeReal = S_last/(S_first×Π_{first+1..last}) − 1\n// L = max(rates.year), n = max(0, Y−L)\n// A = ceilMan(S_last×Π_{last+1..L}×1.02^n), B = ceilMan(S_first×Π_{first+1..L}×1.02^n) (원 = 만원×10000)\n// targetWon = max(A,B); requiredRaisePct = (targetMan/S_last − 1)×100\nexport function parseAmountInput(raw: string): AmountInputResult;\nexport function validateAmount(amountMan: number): boolean; // 정수 1~100000\nexport function formatSignedPct(pct: number): string; // '+5.0%' | '−3.3%'",
+    "dependencies": [
+      "vitest (devDependency, 템플릿에 없을 때만)"
+    ],
+    "ui_requirements": "화면 없음. 화면의 % 표기는 모두 formatSignedPct를 쓴다(예: '+5.0%', '−3.3%')."
+  },
+  {
+    "id": "0003",
+    "title": "entriesStore (localStorage + 메모리 사본)",
+    "epic": "Epic 2: Core Logic & Storage",
+    "task": {
+      "description": "src/lib/entriesStore.ts에 load/save/clear를 만든다. 키는 real-raise-check:v1:entries다. save는 유효한 금액(validateAmount) 항목만 연도순으로 저장한다. 메모리 사본을 먼저 갱신한 뒤 setItem을 try/catch로 감싸 SaveResult를 돌려준다. load는 메모리 사본을 우선한다. 스키마 검사에 실패하면 키를 지우고 {ok:false}를 돌려준다. 어떤 경로에서도 throw하거나 console.error를 출력하지 않는다.",
+      "acceptance_criteria": [
+        "save([{year:2022,amountMan:4000,memo:'이직'},{year:2023,amountMan:4200}]) 후 localStorage['real-raise-check:v1:entries']가 같은 두 항목의 JSON이고, 메모리를 초기화(__resetForTest)한 뒤 load()가 {ok:true, entries:[같은 2개]}를 반환한다",
+        "save에 amountMan이 0, 100001, null인 항목이나 cpi에 없는 연도를 넘기면 그 항목은 저장 JSON에서 빠진다(개별 삭제)",
+        "localStorage에 '{bad', '[{\"year\":\"x\"}]', memo 11자 항목이 들어 있으면 load()가 {ok:false}를 반환하고 키가 삭제된다",
+        "vi.stubGlobal로 setItem이 QuotaExceededError를 throw하게 하면 save()가 {ok:false}를 반환하고 throw하지 않는다. 이어서 load()가 방금 저장하려던 항목을 그대로 돌려준다. console.error 호출은 0회다",
+        "removeItem이 throw하게 하면 clear()가 {ok:false}를 반환하고, 이후 load()는 {ok:true, entries:[]}를 돌려준다",
+        "저장 키가 없으면 load()가 {ok:true, entries:[]}를 반환한다"
+      ]
+    },
+    "covers": [
+      "F1-AC-2",
+      "F1-AC-5",
+      "AC-ERROR",
+      "AC-STORAGE-1"
+    ],
+    "files": [
+      "src/lib/entriesStore.ts",
+      "src/lib/entriesStore.test.ts"
+    ],
+    "definition_of_done": [
+      "load/save/clear/__resetForTest export",
+      "템플릿 storage.ts 헬퍼가 쓰기 예외를 삼켜서 실패를 감지할 수 없으면 window.localStorage를 직접 try/catch로 호출한다",
+      "catch 블록에 console.* 호출이 0개다",
+      "테스트는 jsdom 없이 vi.stubGlobal('localStorage', fake)로 동작하며 전부 통과한다"
+    ],
+    "depends_on": [
+      "0001",
+      "0002"
+    ],
+    "db_schema": "localStorage key: 'real-raise-check:v1:entries'\nvalue: JSON.stringify(SalaryEntry[]) — year 오름차순, year ∈ cpi.rates 연도, amountMan 정수 1~100000, memo?: string(≤10자, 빈 문자열이면 필드 생략)\n스키마 불일치 → 키 삭제 후 {ok:false}",
+    "api_contract": "export function load(): LoadResult; // 메모리 사본 우선\nexport function save(entries: SalaryEntry[]): SaveResult; // 메모리 갱신 → setItem try/catch\nexport function clear(): SaveResult; // 메모리 = [] → removeItem try/catch\nexport function __resetForTest(): void;",
+    "dependencies": [],
+    "ui_requirements": "화면 없음. 저장 실패 Toast는 Home(0004)이 SaveResult.ok를 보고 띄운다."
+  },
+  {
+    "id": "0004",
+    "title": "Home Page (연도별 연봉 입력)",
+    "epic": "Epic 3: Pages",
+    "task": {
+      "description": "src/pages/Home.tsx에 getSlotYears() 5개 슬롯(연봉 TextField + 메모 TextField)을 만든다. parseAmountInput이 accept:false를 돌려주면 입력을 무시하고, 값이 바뀔 때마다 save한다. touched된 칸에만 hasError를 켠다. 입력 연도가 2개 미만이거나 오류 칸이 있으면 SubmitFooter CTA를 disabled로 둔다. 전체 지우기 AlertDialog, 저장 실패 Toast(연속 실패 구간당 1회), 포커스 시 scrollIntoView를 넣는다.",
+      "acceptance_criteria": [
+        "첫 진입(저장값 없음): 슬롯 2021~2025가 오름차순으로 5개, 안내문 '최근 연봉을 입력하면 물가를 뺀 진짜 인상률을 알려드려요'가 보이고, hasError=true인 칸이 0개, CTA가 disabled, hint가 '연봉을 2개 연도 이상 입력해 주세요'다",
+        "'4200' 입력 시 칸에 '4,200'이 보이고 저장 JSON에는 amountMan:4200(정수)이 들어간다. 빈 칸에 '4200.5'·'abc'·'-5000'을 붙여넣으면 칸은 빈 채로 남고 localStorage는 변하지 않는다. '4','$','0','0'을 차례로 입력하면 '400'이 된다",
+        "메모 칸에 11번째 글자를 입력하면 반영되지 않는다(최대 10자)",
+        "'0'이나 '100001'을 입력하고 blur하면 그 칸에 hasError와 help '1만원 ~ 100,000만원 사이로 입력해 주세요'가 보이고 CTA가 disabled다. blur 전에는 hasError가 false다",
+        "유효한 연도 2개를 입력하면 CTA가 enabled가 되고, 누르면 success 햅틱 후 '/result'로 이동한다",
+        "연봉 칸을 지우면 그 연도가 저장 JSON에서 빠진다. 새로고침하면 남은 금액과 메모가 같은 연도에 복원된다",
+        "'전체 지우기' → AlertDialog '입력한 연봉을 모두 지울까요?'가 뜬다. '지우기'를 누르면 5칸이 모두 비고 키가 삭제된다. '닫기'를 누르면 값이 그대로다",
+        "setItem이 throw하게 mock하고 2개 연도를 입력하면 Toast '저장하지 못했어요. 앱을 닫으면 입력이 사라질 수 있어요'가 정확히 1회 뜬다. clear가 실패하면 칸은 비고 Toast '지우지 못했어요. 다시 시도해 주세요'가 뜬다",
+        "TextField에 포커스하면 scrollIntoView({block:'center'})가 1회 호출된다",
+        "모든 Button과 TextField에 aria-label이 있다(예: '2023년 세전 연봉(만원)'). 파일에 HEX 색, margin/padding 인라인 스타일, console.error가 각각 0개다"
+      ]
+    },
+    "covers": [
+      "F1-AC-1",
+      "F1-AC-2",
+      "F1-AC-3",
+      "F1-AC-4",
+      "F1-AC-5",
+      "AC-INPUT-1",
+      "AC-INPUT-2",
+      "AC-INPUT-3",
+      "AC-EMPTY",
+      "AC-KEYBOARD",
+      "AC-A11Y-1",
+      "AC-FORMAT",
+      "AC-STORAGE-1"
+    ],
+    "files": [
+      "src/pages/Home.tsx"
+    ],
+    "definition_of_done": [
+      "TDS(Top, ListRow, TextField variant='box', Button, AlertDialog, Paragraph.Text, Spacing, useToast)와 템플릿 SubmitFooter만 사용한다",
+      "커스텀 스타일은 슬롯 내부 grid 배치(gridTemplateColumns, gap) 1곳뿐이다",
+      "화면 state는 슬롯별 {amountText, memo, touched}이고, save에는 유효 금액 항목만 넘긴다(무효 값은 화면에만 남는다)",
+      "저장 실패 Toast는 lastSaveOkRef가 true→false로 바뀔 때만 띄운다",
+      "햅틱: 계산하기 success, 전체 지우기 tickWeak, 지우기 tickStrong(generateHapticFeedback)",
+      "formatNumber는 템플릿 유틸을 사용한다"
+    ],
+    "depends_on": [
+      "0001",
+      "0002",
+      "0003"
+    ],
+    "db_schema": "entriesStore(0003) 사용 — 'real-raise-check:v1:entries'",
+    "api_contract": "export default function Home(): JSX.Element\n// 사용: getSlotYears, parseAmountInput, validateAmount, load/save/clear, useNavigate",
+    "dependencies": [],
+    "ui_requirements": "## Screen: Home (/)\n### Pattern\nTop+우측액션 + InputForm + FixedBottomCTA (SubmitFooter)\n### TDS Components (whitelist)\nTop, Paragraph, ListRow, TextField, Button, AlertDialog, Spacing, Toast(useToast) · 템플릿: SubmitFooter\n### Layout\n<Top\n  title={<Top.TitleParagraph>진짜연봉체크</Top.TitleParagraph>}\n  right={entries.length > 0 && (\n    <Button variant=\"weak\" size=\"small\" color=\"dark\" aria-label=\"입력한 연봉 전체 지우기\"\n      onClick={openClearDialog}>전체 지우기</Button>)}\n/>\n{!hasSaved && (<>\n  <Spacing size={8} />\n  <Paragraph.Text typography=\"t6\" color=\"var(--adaptiveGrey600)\">\n    최근 연봉을 입력하면 물가를 뺀 진짜 인상률을 알려드려요</Paragraph.Text>\n</>)}\n<Spacing size={16} />\n{getSlotYears().map((year) => (   // 오름차순 5개, 예: 2021~2025\n  <ListRow key={year} contents={\n    <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 8 }}>  {/* 배치만 */}\n      <TextField variant=\"box\" labelOption=\"sustain\" label={`${year}년 연봉(만원)`}\n        aria-label={`${year}년 세전 연봉(만원)`} inputMode=\"numeric\" placeholder=\"예: 4,200\"\n        value={formatNumber(amount)} onChange={onAmountChange}  // parseAmountInput accept:false면 무시\n        onFocus={scrollIntoViewCenter} onBlur={markTouched}\n        hasError={touched && invalid} help={touched && invalid ? '1만원 ~ 100,000만원 사이로 입력해 주세요' : undefined} />\n      <TextField variant=\"box\" labelOption=\"sustain\" label=\"메모\" aria-label={`${year}년 메모`}\n        placeholder=\"예: 이직\" value={memo} onChange={onMemoChange /* 10자 초과 무시 */} />\n    </div>} />\n))}\n<Spacing size={24} />\n<SubmitFooter label=\"계산하기\" onClick={goResult} disabled={!canCalc}\n  hint={filledCount < 2 ? '연봉을 2개 연도 이상 입력해 주세요'\n       : hasInvalid ? '빨간 칸의 금액을 고쳐 주세요' : undefined} />\n<AlertDialog open={clearOpen} title=\"입력한 연봉을 모두 지울까요?\" onClose={closeClearDialog}\n  alertButton={<>\n    <AlertDialog.AlertButton onClick={closeClearDialog}>닫기</AlertDialog.AlertButton>\n    <AlertDialog.AlertButton onClick={confirmClear}>지우기</AlertDialog.AlertButton></>} />\n### States\n- Loading: 없음. entriesStore.load가 동기로 동작하므로 첫 렌더에 바로 값을 채운다.\n- Empty(첫 진입, 저장값 없음): 안내 Paragraph 표시, 슬롯 5개 빈 칸, hasError 0개, CTA disabled, hint '연봉을 2개 연도 이상 입력해 주세요'.\n- 검증 오류: blur를 한 번 거친 칸만 hasError+help. 오류 칸이 1개 이상이면 CTA disabled.\n- Error(저장 실패, AC-STORAGE-1): openToast('저장하지 못했어요. 앱을 닫으면 입력이 사라질 수 있어요')를 연속 실패 1구간에 1회. 입력과 계산하기는 계속 가능. 전체 지우기 실패 시 화면은 비우고 openToast('지우지 못했어요. 다시 시도해 주세요').\n### Interactions\n- 연봉 입력: parseAmountInput accept:false면 state 불변(붙여넣기·타이핑 한 번이 통째로 무시됨). 반영값은 formatNumber로 콤마 표시 후 즉시 save(). 칸을 비우면 그 연도를 목록에서 뺀다.\n- 포커스: scrollIntoView({ block: 'center' }). 키보드가 열려도 SubmitFooter가 보여야 한다(SubmitFooter의 safe-area 처리를 덮어쓰지 않는다).\n- '전체 지우기': tickWeak 햅틱 → AlertDialog. '지우기': tickStrong 햅틱 → clear() 후 슬롯 비움. '닫기'·바깥 터치: 변화 없음.\n- '계산하기': success 햅틱 → navigate('/result').\n### SPEC과 다르게 적용한 곳\n1. F1-AC-4의 '취소' 버튼은 UX 라이팅 규칙(Dialog 왼쪽='닫기')에 따라 '닫기'로 쓴다. 동작은 같다(아무것도 바뀌지 않음).\n2. AlertDialog는 alertButton에 AlertDialog.AlertButton 2개를 Fragment로 넘긴다. .d.ts에서 막혀 있으면 같은 문구로 BottomSheet + BottomSheet.DoubleCTA를 대신 쓴다."
+  },
+  {
+    "id": "0005",
+    "title": "RaiseBars 컴포넌트 (명목 vs 실질 막대)",
+    "epic": "Epic 3: Pages",
+    "task": {
+      "description": "src/components/RaiseBars.tsx는 PairRow[]를 받아 행마다 연도 라벨(메모 포함, 연도가 떨어져 있으면 '(N년)'), 0 기준축을 가운데 둔 명목·실질 막대 2줄, 수치 캡션을 ListRow로 그린다. 막대 길이는 |값| ÷ 전체 행 |값| 최댓값 × 반폭 100%다. 실질이 음수면 red500과 '구매력 감소', 0 이상이면 blue500이다. 커스텀 CSS는 flex, width%, 토큰 배경색에만 쓴다.",
+      "acceptance_criteria": [
+        "rows 2개(nominal 5.0/real 1.4, nominal 2.0/real -3.0)를 렌더하면 ListRow 2개가 나오고 max|값|=5.0이다. 첫 행 명목 막대 width는 '100%', 실질 막대는 '28%'(±0.1)이며 둘 다 축 오른쪽 반폭에 있다",
+        "realPct -3.0 행의 실질 막대는 축 왼쪽 반폭에 width '60%'로 그려지고, 배경이 vars.color.red500이며, 캡션에 '구매력 감소'가 보인다. realPct 1.4 행의 막대 배경은 vars.color.blue500이고 '구매력 감소'가 없다",
+        "fromMemo='이직'인 행의 라벨에 '2024 · 이직'처럼 메모가 그대로 보인다",
+        "gapYears=2인 행의 라벨은 '2021→2023 (2년)'이다. gapYears=1이면 '(N년)'이 붙지 않는다",
+        "캡션은 '명목 +5.0% · 실질 +1.4%' 형식이다(formatSignedPct 사용)",
+        "모든 값이 0이면 막대 width는 모두 '0%'이고 NaN이 0개다",
+        "파일에 HEX 색, margin/padding 스타일이 각각 0개다"
+      ]
+    },
+    "covers": [
+      "F2-AC-2",
+      "F2-AC-4",
+      "F2-AC-6",
+      "AC-A11Y-3"
+    ],
+    "files": [
+      "src/components/RaiseBars.tsx"
+    ],
+    "definition_of_done": [
+      "props: { rows: PairRow[] }",
+      "ListRow, Paragraph.Text, Spacing만 TDS로 쓰고 막대만 flex div다",
+      "색은 vars.color.red500 / vars.color.blue500 / var(--adaptiveGrey400) 토큰만 쓴다",
+      "max|값|이 0일 때 0으로 나누지 않는다"
+    ],
+    "depends_on": [
+      "0001",
+      "0002"
+    ],
+    "db_schema": "N/A",
+    "api_contract": "export function RaiseBars(props: { rows: PairRow[] }): JSX.Element",
+    "dependencies": [],
+    "ui_requirements": "## Component: RaiseBars (Result 내부)\n### TDS Components (whitelist)\nListRow, Paragraph, Spacing (막대만 flex div)\n### Layout\n{rows.map((row) => (\n  <ListRow key={`${row.fromYear}-${row.toYear}`} contents={<>\n    <Paragraph.Text typography=\"t6\">\n      {row.fromYear}{row.fromMemo && ` · ${row.fromMemo}`}→{row.toYear}{row.toMemo && ` · ${row.toMemo}`}\n      {row.gapYears > 1 && ` (${row.gapYears}년)`}</Paragraph.Text>\n    <Spacing size={8} />\n    {/* 명목·실질 각 1줄: [왼쪽 반폭 | 0축 | 오른쪽 반폭], width% = |값| ÷ max|값| × 100% */}\n    <div style={{ display: 'flex' }}>…명목 막대(var(--adaptiveGrey400))…</div>\n    <Spacing size={4} />\n    <div style={{ display: 'flex' }}>…실질 막대(실질<0 ? vars.color.red500 : vars.color.blue500)…</div>\n    <Spacing size={4} />\n    <Paragraph.Text typography=\"st12\" color=\"var(--adaptiveGrey600)\">\n      명목 {signed(row.nominalPct)} · 실질 {signed(row.realPct)}{row.realPct < 0 && ' · 구매력 감소'}</Paragraph.Text>\n  </>} />\n))}\n- 커스텀 CSS는 flex 배치, width%, 막대 배경색 토큰에만 쓴다. HEX 값과 padding/margin 덮어쓰기는 0개다.\n- 양수는 축 오른쪽, 음수는 축 왼쪽으로 뻗는다.\n- 명목 막대 색 var(--adaptiveGrey400)은 SPEC에 지정되지 않은 값으로 블루프린트에서 고른 것이다.\n- signed = formatSignedPct (calculator.ts)."
+  },
+  {
+    "id": "0006",
+    "title": "공유 카드 (Canvas PNG + ShareCardButton)",
+    "epic": "Epic 3: Pages",
+    "task": {
+      "description": "src/lib/shareCard.ts에 AppResult로 1080×1350 PNG Blob을 만드는 renderShareCard와 share→download 순서로 저장하는 saveShareImage를 만든다. 색은 getComputedStyle로 토큰 CSS 변수를 읽는다. src/components/ShareCardButton.tsx는 '공유 카드 저장' 버튼이다. 생성 중에는 loading 상태로 재진입을 막고, 성공·실패는 Toast로 알리며 AbortError에는 Toast를 띄우지 않는다.",
+      "acceptance_criteria": [
+        "renderShareCard가 width 1080, height 1350 canvas에서 type 'image/png' Blob을 반환한다",
+        "카드 fillText 문자열에 앱 이름 '진짜연봉체크', 누적 구매력 변화율(formatSignedPct), 필요 인상률, 최근 최대 4행의 실질 인상률, 출처 '출처: 통계청 소비자물가지수 연간 상승률(KOSIS) · {asOf} 기준'이 모두 있다",
+        "showAmount=false면 fillText 인자 중 /\\d[\\d,]*원/ 패턴에 맞는 문자열이 0개다. showAmount=true면 formatCurrency(targetWon)(예: '46,410,000원')이 1개 이상 있다",
+        "canShare({files})가 true면 navigator.share가 1회 호출되고, false거나 없으면 download='real-raise-check.png'인 a 요소의 click이 1회 호출된다. 두 경우 모두 성공하면 Toast '이미지를 저장했어요'가 뜬다",
+        "share가 name 'AbortError'로 reject되면 Toast가 0개다. 그 밖의 예외에서는 Toast '저장하지 못했어요. 다시 시도해 주세요'가 1회 뜨고 console.error는 0회다",
+        "생성 중에는 버튼이 loading(또는 disabled)이고, 그 사이 다시 눌러도 renderShareCard 호출은 1회뿐이다",
+        "두 파일 모두 HEX 색 문자열이 0개다"
+      ]
+    },
+    "covers": [
+      "F3-AC-3",
+      "F3-AC-4",
+      "F3-AC-5",
+      "AC-LOADING",
+      "AC-A11Y-3"
+    ],
+    "files": [
+      "src/lib/shareCard.ts",
+      "src/components/ShareCardButton.tsx"
+    ],
+    "definition_of_done": [
+      "색은 getComputedStyle(document.documentElement).getPropertyValue('--adaptive…')로 읽고, 빈 값이면 fillStyle을 지정하지 않는다(캔버스 기본값)",
+      "download 경로는 URL.createObjectURL → a.click → revokeObjectURL 순서다",
+      "Button variant='fill' size='large', aria-label='공유 카드 저장', 누르면 success 햅틱",
+      "Button loading prop이 .d.ts에 없으면 disabled + 라벨 '카드를 만들고 있어요'로 대신한다",
+      "재진입은 useRef 플래그로 막는다"
+    ],
+    "depends_on": [
+      "0001",
+      "0002"
+    ],
+    "db_schema": "N/A",
+    "api_contract": "export function renderShareCard(result: AppResult, opts: { showAmount: boolean; cpi: CpiData }): Promise<Blob>;\nexport function saveShareImage(blob: Blob): Promise<'shared' | 'downloaded' | 'aborted'>; // 그 외 예외는 throw\nexport function ShareCardButton(props: { result: AppResult; showAmount: boolean }): JSX.Element;",
+    "dependencies": [],
+    "ui_requirements": "## Result 내 공유 영역 (블루프린트 발췌)\n<ShareCardButton result={r} showAmount={showAmount} />  {/* Button fill large \"공유 카드 저장\" */}\n### States\n- Loading: 카드를 만드는 동안 ShareCardButton만 loading 상태가 되고, 다시 눌러도 동작하지 않는다.\n### Interactions\n- '공유 카드 저장': success 햅틱 → Canvas 1080×1350 PNG 생성 → canShare({ files })가 true면 navigator.share, 아니면 <a download=\"real-raise-check.png\">.\n  - 성공: openToast('이미지를 저장했어요')\n  - 예외: openToast('저장하지 못했어요. 다시 시도해 주세요')\n  - AbortError(사용자가 공유 취소): Toast 없음\n- Switch '연봉 금액 표시'가 꺼져 있으면(기본) 카드에 원 단위 금액이 0개다.\n### SPEC과 다르게 적용한 곳\n- Button loading: .d.ts에 있으면 그대로 쓰고, 없으면 disabled 상태에 라벨 '카드를 만들고 있어요'로 대신한다."
+  },
+  {
+    "id": "0007",
+    "title": "Result Page (목표 연봉 + 비교 + 배너)",
+    "epic": "Epic 3: Pages",
+    "task": {
+      "description": "src/pages/Result.tsx는 entriesStore.load → calculate(entries, cpi, new Date().getFullYear()) 결과를 Screen Definitions 순서(목표 연봉 블록, 누적 카드, RaiseBars와 출처, Switch와 공유 버튼, 다시 입력하기)로 렌더한다. 입력 연도가 2개 미만이면 Empty, 파싱이나 계산 예외면 에러 화면(다시 시도/입력 다시 하기)을 보여 준다. AdSlot 1개는 분기 바깥 맨 아래에 두고 TossRewardAd는 쓰지 않는다.",
+      "acceptance_criteria": [
+        "F2-AC-3 픽스처 저장값으로 2026년에 진입하면 '올해(2026) 목표 연봉', '46,410,000원', '작년 연봉 대비 +5.5% 인상 필요', '작년 구매력 유지선' 44,880,000원, '첫 해 구매력 회복선' 46,410,000원, 가정 문구 '올해 물가는 한국은행 물가안정목표 2%로 가정했어요 · 세전 기준 참고용'이 보인다",
+        "누적 행에 '첫 해(2021) 대비 구매력 −3.3%'와 '명목 +10.0%', Badge '구매력 감소'가 보인다",
+        "RaiseBars 아래에 '출처: 통계청 소비자물가지수 연간 상승률(KOSIS) · 2025년 연간 기준'이 보인다",
+        "currentYear가 2027(staleYears≥2)이면 '물가 데이터가 2025년까지만 있어요'가 보이고, 2026이면 보이지 않는다",
+        "저장된 연도가 0~1개면 '입력한 연봉이 부족해요', '2개 연도 이상 입력하면 실질 인상률을 보여드려요', 버튼 '연봉 입력하러 가기'(→ /)가 보인다",
+        "저장값이 '{bad'이면 '결과를 불러오지 못했어요'와 버튼 '다시 시도', '입력 다시 하기'가 보이고 키가 삭제된다. console.error는 0회다",
+        "Switch는 기본 꺼짐이고, 토글하면 tickWeak 햅틱과 함께 ShareCardButton의 showAmount가 바뀐다",
+        "렌더 결과에 AdSlot이 정확히 1개이고 공유·다시 입력하기 버튼보다 아래에 있다. TossRewardAd는 0개다",
+        "VITE_TOSS_AD_GROUP_ID를 비운 빌드에서도 목표 연봉, 누적 카드, 막대, 공유 버튼이 모두 보인다. Toast와 console.error는 각각 0개다"
+      ]
+    },
+    "covers": [
+      "F2-AC-1",
+      "F2-AC-3",
+      "F2-AC-5",
+      "F3-AC-1",
+      "F3-AC-2",
+      "AC-EMPTY",
+      "AC-ERROR",
+      "AC-REWARD",
+      "AC-AD-1",
+      "AC-FORMAT",
+      "AC-A11Y-1"
+    ],
+    "files": [
+      "src/pages/Result.tsx"
+    ],
+    "definition_of_done": [
+      "계산 분기 try/catch는 결과/Empty/에러 판정에만 쓴다. AdSlot은 그 바깥, 렌더 트리 최하단에 둔다",
+      "에러 분기에서는 entriesStore.clear()로 손상된 저장값을 지우고, '다시 시도'(tickWeak)는 load와 calculate를 다시 실행한다",
+      "금액은 formatCurrency, %는 formatSignedPct로 표시한다",
+      "AdSlot과 템플릿 컴포넌트는 수정하지 않는다",
+      "HEX와 margin/padding 인라인 스타일 0개, 모든 Button에 aria-label"
+    ],
+    "depends_on": [
+      "0001",
+      "0002",
+      "0003",
+      "0005",
+      "0006"
+    ],
+    "db_schema": "entriesStore(0003) 읽기 전용 — 'real-raise-check:v1:entries' (에러 시 clear)",
+    "api_contract": "export default function Result(): JSX.Element\n// state: { kind: 'result'; r: AppResult } | { kind: 'empty' } | { kind: 'error' }",
+    "dependencies": [],
+    "ui_requirements": "## Screen: Result (/result)\n### Pattern\nStatusPanel (Hero Summary + Status ListRow + 섹션 헤더 + 버튼 스택)\n### TDS Components (whitelist)\nTop, Paragraph, ListRow, Badge, Switch, Button, Spacing, Border, Toast(useToast) · 템플릿: SummaryHero, Amount, EmptyState, AdSlot · 프로젝트: RaiseBars, ShareCardButton\n### Layout\n<Top title={<Top.TitleParagraph>진짜연봉체크</Top.TitleParagraph>} />\n{/* ↓ 이 분기(결과/Empty/에러)만 try/catch 대상 */}\n<SummaryHero label={`올해(${r.targetYear}) 목표 연봉`}\n  value={<Amount value={r.targetWon} unit=\"원\" typography=\"t1\" />}\n  caption={`작년 연봉 대비 ${signed(r.requiredRaisePct)} 인상 필요`} />\n<ListRow contents={<ListRow.Texts type=\"1RowTypeA\" top=\"작년 구매력 유지선\" />}\n  right={<Paragraph.Text typography=\"t5\">{formatCurrency(r.keepLineWon)}</Paragraph.Text>} />\n<ListRow contents={<ListRow.Texts type=\"1RowTypeA\" top=\"첫 해 구매력 회복선\" />}\n  right={<Paragraph.Text typography=\"t5\">{formatCurrency(r.restoreLineWon)}</Paragraph.Text>} />\n<Paragraph.Text typography=\"t7\" color=\"var(--adaptiveGrey600)\">\n  올해 물가는 한국은행 물가안정목표 2%로 가정했어요 · 세전 기준 참고용</Paragraph.Text>\n{r.staleYears >= 2 && (<><Spacing size={4} />\n  <Paragraph.Text typography=\"t7\" color=\"var(--adaptiveGrey700)\">물가 데이터가 {L}년까지만 있어요</Paragraph.Text></>)}\n<Spacing size={24} /><Border />\n<ListRow contents={<ListRow.Texts type=\"2RowTypeA\"\n    top={`첫 해(${r.firstYear}) 대비 구매력 ${signed(r.cumulativeRealPct)}`}\n    bottom={`명목 ${signed(r.cumulativeNominalPct)}`} />}\n  right={<Badge size=\"small\" variant=\"weak\" color={r.cumulativeRealPct < 0 ? 'red' : 'blue'}>\n    {r.cumulativeRealPct < 0 ? '구매력 감소' : '구매력 유지'}</Badge>} />\n<Spacing size={24} />\n<Paragraph.Text typography=\"t4\">연도별 인상률</Paragraph.Text>\n<Spacing size={12} />\n<RaiseBars rows={r.rows} />\n<Spacing size={8} />\n<Paragraph.Text typography=\"st12\" color=\"var(--adaptiveGrey600)\">\n  출처: 통계청 소비자물가지수 연간 상승률(KOSIS) · {cpi.asOf} 기준</Paragraph.Text>\n<Spacing size={24} />\n<ListRow contents={<ListRow.Texts type=\"2RowTypeA\" top=\"연봉 금액 표시\" bottom=\"켜면 카드에 목표 연봉이 들어가요\" />}\n  right={<Switch checked={showAmount} onChange={toggleAmount} aria-label=\"공유 카드에 연봉 금액 표시\" />} />\n<ShareCardButton result={r} showAmount={showAmount} />  {/* Button fill large \"공유 카드 저장\" */}\n<Spacing size={8} />\n<Button variant=\"weak\" size=\"large\" aria-label=\"연봉 다시 입력하기\" onClick={() => navigate('/')}>다시 입력하기</Button>\n<Spacing size={24} />\n{/* ↓ 분기 바깥 — 광고 실패가 결과 판정에 영향 없음 (AC-AD-1) */}\n<AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID} />\n### States\n- Loading: 없음(동기 계산). ShareCardButton만 생성 중 loading.\n- Empty(입력 연도 2개 미만): <EmptyState title=\"입력한 연봉이 부족해요\" description=\"2개 연도 이상 입력하면 실질 인상률을 보여드려요\" action={<Button variant=\"weak\" aria-label=\"연봉 입력하러 가기\">연봉 입력하러 가기</Button>} /> → '/'로 이동. AdSlot은 분기 바깥에 그대로 둔다.\n- Error(파싱 또는 계산 예외): 손상된 저장값 삭제 → <Paragraph.Text typography=\"t4\">결과를 불러오지 못했어요</Paragraph.Text> → <Spacing size={16} /> → Button fill '다시 시도'(재로딩 후 재계산, aria-label '다시 시도') + Button weak '입력 다시 하기'(→ /, aria-label '입력 다시 하기'). console.error 0개.\n- 광고 실패: 광고 자리를 비워 두기만 한다. 문구·Toast·대체 안내 0개.\n### Interactions\n- Switch '연봉 금액 표시': tickWeak 햅틱. 기본 꺼짐.\n- '다시 입력하기'/'입력 다시 하기': 햅틱 없이 navigate('/'). '다시 시도': tickWeak 햅틱.\n- signed = formatSignedPct, L = getLatestCpiYear().\n### SPEC과 다르게 적용한 곳\n- Switch의 checked/onChange prop 이름은 .d.ts에서 확인한 뒤 쓴다."
+  },
+  {
+    "id": "0008",
+    "title": "Routing & Integration (App 라우트 + 검수 점검)",
+    "epic": "Epic 4: Integration/Routing",
+    "task": {
+      "description": "src/App.tsx에 react-router-dom Routes로 '/'→Home, '/result'→Result를 연결하고, 알 수 없는 경로는 '/'로 보낸다. main.tsx는 수정하지 않는다(Router가 main.tsx에 이미 있으면 App에는 Routes만 둔다). 그 뒤 프로젝트 전체를 grep해 외부 URL 이동, console.error, 외부 로깅 SDK, TDS 크기 덮어쓰기가 각각 0건인지 확인하고, 발견되면 해당 파일에서 제거한다.",
+      "acceptance_criteria": [
+        "'/'에서 Home 상단 '진짜연봉체크'와 연도 슬롯 5개가 렌더되고, '/result'에서 Result가 렌더된다. '/unknown'으로 들어가면 '/'로 이동한다",
+        "Home에서 유효한 2개 연도를 입력하고 '계산하기'를 누르면 '/result'에서 목표 연봉 금액이 보인다. /result에서 새로고침해도 같은 금액이 보인다",
+        "`grep -rnE \"window\\.open|location\\.href\\s*=|target=.?_blank\" src` 결과 0건(KOSIS는 텍스트로만 표기)",
+        "`grep -rn \"console.error\" src` 결과 0건",
+        "`grep -rniE \"gtag|amplitude|mixpanel|firebase/analytics\" src package.json` 결과 0건",
+        "`grep -rnE \"#[0-9a-fA-F]{3,8}\\b\" src/pages src/components/RaiseBars.tsx src/components/ShareCardButton.tsx src/lib/shareCard.ts` 결과 0건, TDS 컴포넌트 height/minHeight/padding 덮어쓰기 0건",
+        "`npm run build`와 `npx tsc --noEmit`이 에러 0개로 통과한다"
+      ]
+    },
+    "covers": [
+      "AC-REVIEW-1",
+      "AC-REVIEW-2",
+      "AC-REVIEW-3",
+      "AC-A11Y-2"
+    ],
+    "files": [
+      "src/App.tsx"
+    ],
+    "definition_of_done": [
+      "main.tsx 변경 0줄",
+      "App.tsx에 Route 2개와 catch-all Navigate가 있다",
+      "FloatingTabBar와 TossRewardAd를 쓰지 않는다",
+      "grep 점검 4종 결과가 모두 0건이다",
+      "build 성공"
+    ],
+    "depends_on": [
+      "0004",
+      "0007"
+    ],
+    "db_schema": "N/A",
+    "api_contract": "export default function App(): JSX.Element\n// <Routes><Route path='/' element={<Home/>}/><Route path='/result' element={<Result/>}/><Route path='*' element={<Navigate to='/' replace/>}/></Routes>",
+    "dependencies": [
+      "react-router-dom (템플릿 포함)"
+    ],
+    "ui_requirements": "새 화면 없음. 화면은 Home(/)과 Result(/result) 2개이고 하단 탭이 없으므로 FloatingTabBar를 쓰지 않는다. 생성형 AI가 없으므로 AI 고지 패턴(G/H)도 적용하지 않는다. TDS 기본 터치 타겟(44×44px 이상)을 덮어쓰지 않는다."
+  }
+]
