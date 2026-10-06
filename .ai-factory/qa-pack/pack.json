@@ -1,0 +1,9 @@
+{
+  "app_id": "fac_real_raise_check",
+  "name": "Real Raise Check",
+  "base_url_env": "FAC_REAL_RAISE_CHECK_BASE_URL",
+  "profile": "experimental",
+  "level": "smoke",
+  "created_by": "factory",
+  "created_at": "2026-10-07"
+}
