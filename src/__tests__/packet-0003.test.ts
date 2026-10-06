@@ -164,7 +164,7 @@ describe("entriesStore (localStorage + 메모리 사본)", () => {
     it("should return {ok:false} and delete key when memo exceeds 10 characters", () => {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify([{ year: 2022, amountMan: 4000, memo: "11chars!!!" }]) // 10 chars exactly, but test with 11
+        JSON.stringify([{ year: 2022, amountMan: 4000, memo: "11chars!!!!" }]) // 11 chars
       );
       entriesStore.__resetForTest();
 
@@ -198,7 +198,7 @@ describe("entriesStore (localStorage + 메모리 사본)", () => {
 
       const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
         const err = new DOMException("QuotaExceededError");
-        err.name = "QuotaExceededError";
+        Object.defineProperty(err, "name", { value: "QuotaExceededError" });
         throw err;
       });
 
@@ -230,7 +230,7 @@ describe("entriesStore (localStorage + 메모리 사본)", () => {
 
       const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
         const err = new DOMException("QuotaExceededError");
-        err.name = "QuotaExceededError";
+        Object.defineProperty(err, "name", { value: "QuotaExceededError" });
         throw err;
       });
 

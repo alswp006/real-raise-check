@@ -147,6 +147,8 @@ export type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };
   hooks/
   lib/
     analytics.ts
+    calculator.test.ts
+    calculator.ts
     contract.ts
     review.ts
     share.ts
@@ -166,6 +168,7 @@ export type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };
 
 ### Exports (src/lib/)
 - analytics.ts: export type LogFields = Record<string, string | number | boolean | null>; export const DWELL_MS = 3000; export function fireAndForget(call: () => unknown): void; export function logScreen(page: string, extra?: LogFields): void; export function logClick(name: string, extra?: LogFields): void; export function logImpression(name: string, extra?: LogFields): void; export function useScreenLog(page: string): void
+- calculator.ts: export function calculate(entries: SalaryEntry[], cpi: CpiData, currentYear: number): AppResult; export function parseAmountInput(raw: string): AmountInputResult; export function validateAmount(amountMan: number): boolean; export function formatSignedPct(pct: number): string
 - contract.ts: export type SalaryEntry =; export type CpiData =; export type PairRow =; export type AppResult =; export type AmountInputResult =; export type SaveResult =; export type LoadResult =; export type getSlotYearsFn = () => number[]
 - review.ts: export function requestReviewOnce(key: string = REVIEW_REQUESTED_KEY): void
 - share.ts: export interface ShareAppOptions; export async function shareApp(opts: ShareAppOptions): Promise<void>
@@ -188,10 +191,14 @@ export type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };
 - SummaryHero.tsx: SummaryHero
 - TossPurchase.tsx: TossPurchase
 - TossRewardAd.tsx: TossRewardAd
+
+### Module Dependencies (import graph)
+  lib/calculator.ts → imports: lib/types
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
 
 ## Already Implemented (do NOT duplicate or overwrite)
 - 0001: Types & Constants (types + CPI 번들) (files: src/lib/types.ts, src/data/cpi.ts)
+- 0002: Core Logic (계산기 순수 함수 + 테스트) (files: src/lib/calculator.ts, src/lib/calculator.test.ts, package.json)
 
 ## Available exports from existing files
 // src/App.tsx
@@ -257,11 +264,11 @@ export function logClick(name: string, extra?: LogFields): void {
 export function logImpression(name: string, extra?: LogFields): void {
 export function useScreenLog(page: string): void {
 
-// src/lib/contract.ts
-export type SalaryEntry = { year: number; amountMan: number; memo?: string };
-export type CpiData = { [year: number]: number };
-export type PairRow = { year: number; memo?: string; nominalPct: number; realPct: number };
-export type AppResult = { entries: SalaryEntry[]; row
+// src/lib/calculator.ts
+export function calculate(entries: SalaryEntry[], cpi: CpiData, currentYear: number): AppResult {
+export function parseAmountInput(raw: string): AmountInputResult {
+export function validateAmount(amountMan: number): boolean {
+export function formatSignedPct(pct: number):
 
 ## Memory Index (자동 학습 — 힌트로만 사용, 실제 코드 확인 필수)
 
