@@ -52,7 +52,7 @@ afterEach(() => {
 });
 
 describe("Home Page (연도별 연봉 입력)", () => {
-  it("AC-1: 첫 진입은 2021~2025 슬롯 5개, 안내문, 에러 0개, CTA 비활성 + hint", () => {
+  it("AC-1: 첫 진입은 2021~2025 슬롯 5개, 안내문, 에러 0개, CTA 탭 시 안내 + hint", () => {
     renderHome();
     const inputs = YEARS.map(amountInput);
     expect(inputs).toHaveLength(5);
@@ -64,7 +64,7 @@ describe("Home Page (연도별 연봉 입력)", () => {
     );
     expect(screen.getByText("최근 연봉을 입력하면 물가를 뺀 진짜 인상률을 알려드려요")).toBeInTheDocument();
     expect(invalidCount()).toBe(0);
-    expect(cta().disabled).toBe(true);
+    expect(cta().disabled).toBe(false);
     expect(screen.getByText(HINT)).toBeInTheDocument();
   });
 
@@ -104,7 +104,7 @@ describe("Home Page (연도별 연봉 입력)", () => {
     expect(memoInput(2022).value).toBe("1234567890");
   });
 
-  it("AC-4[P0]: '0'·'100001'은 blur 후에만 hasError + help, CTA 비활성", () => {
+  it("AC-4[P0]: '0'·'100001'은 blur 후에만 hasError + help, CTA 탭 시 안내", () => {
     renderHome();
     const msg = "1만원 ~ 100,000만원 사이로 입력해 주세요";
     for (const bad of ["0", "100001"]) {
@@ -119,14 +119,14 @@ describe("Home Page (연도별 연봉 입력)", () => {
       fireEvent.blur(el);
       expect(el.getAttribute("aria-invalid")).toBe("true");
       expect(screen.getByText(msg)).toBeInTheDocument();
-      expect(cta().disabled).toBe(true);
+      expect(cta().disabled).toBe(false);
     }
   });
 
   it("AC-5[P0]: 유효 2개 연도면 CTA 활성, 누르면 success 햅틱 후 /result 이동", () => {
     renderHome();
     type(amountInput(2022), "3800");
-    expect(cta().disabled).toBe(true);
+    expect(cta().disabled).toBe(false);
     type(amountInput(2025), "4200");
     expect(cta().disabled).toBe(false);
     fireEvent.click(cta());

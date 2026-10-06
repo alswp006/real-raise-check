@@ -25,6 +25,8 @@ const MAX_MEMO_LENGTH = 10;
 // 7자리를 넘는 숫자는 범위 밖이 분명하다 — 정밀도 손실 전에 입력 단계에서 막는다.
 const MAX_AMOUNT_DIGITS = 7;
 const RANGE_HELP = "1만원 ~ 100,000만원 사이로 입력해 주세요";
+const NOT_NUMBER_HELP = "숫자만 입력할 수 있어요. 음수나 소수점은 쓸 수 없어요";
+const NEED_MORE_HELP = "연봉을 2개 연도 이상 입력해 주세요";
 const SAVE_FAIL_TOAST = "저장하지 못했어요. 앱을 닫으면 입력이 사라질 수 있어요";
 const CLEAR_FAIL_TOAST = "지우지 못했어요. 다시 시도해 주세요";
 
@@ -79,6 +81,8 @@ export default function Home() {
   const [slots, setSlots] = useState<Slots>(() => initialSlots(years));
   const [hasSaved] = useState(() => toEntries(years, slots).length > 0);
   const [clearOpen, setClearOpen] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+  const [rejectedYear, setRejectedYear] = useState<number | null>(null);
   const lastSaveOkRef = useRef(true);
 
   const filledCount = toEntries(years, slots).length;
@@ -96,8 +100,12 @@ export default function Home() {
 
   const onAmountChange = (year: number, raw: string) => {
     const parsed = parseAmountInput(raw);
-    if (!parsed.accept) return;
+    if (!parsed.accept) {
+      setRejectedYear(year);
+      return;
+    }
     if (parsed.value !== null && String(parsed.value).length > MAX_AMOUNT_DIGITS) return;
+    setRejectedYear(null);
     commit({ ...slots, [year]: { ...slots[year], amount: parsed.value } });
   };
 
@@ -125,6 +133,11 @@ export default function Home() {
   };
 
   const goResult = () => {
+    if (!canCalc) {
+      haptic("tickMedium");
+      setAttempted(true);
+      return;
+    }
     logClick("calculate_submit", { years: filledCount });
     navigate("/result");
   };
@@ -155,7 +168,7 @@ export default function Home() {
           }
         />
       }
-      bottom={<SubmitFooter label="결과 계산하기" onClick={goResult} disabled={!canCalc} hint={hint} />}
+      bottom={<SubmitFooter label="결과 계산하기" onClick={goResult} hint={hint} />}
     >
       {!hasSaved && (
         <>
@@ -165,10 +178,20 @@ export default function Home() {
           </Paragraph.Text>
         </>
       )}
+      {attempted && filledCount < MIN_YEARS && (
+        <>
+          <Spacing size={8} />
+          <Paragraph.Text typography="t6" color="var(--adaptiveRed500)" role="alert">
+            {NEED_MORE_HELP}
+          </Paragraph.Text>
+        </>
+      )}
       <Spacing size={16} />
       {years.map((year, idx) => {
         const slot = slots[year];
-        const showError = slot.touched && isInvalid(slot);
+        const rejected = rejectedYear === year;
+        const showRange = (slot.touched || attempted) && isInvalid(slot);
+        const showError = showRange || rejected;
         const isLast = idx === years.length - 1;
         return (
           <div key={year}>
@@ -181,13 +204,16 @@ export default function Home() {
                   aria-label={`${year}년 세전 연봉(만원)`}
                   inputMode="numeric"
                   enterKeyHint="next"
-                  placeholder="4,200"
+                  placeholder="예: 4,200"
                   value={slot.amount === null ? "" : formatNumber(slot.amount)}
                   onChange={(e) => onAmountChange(year, e.target.value)}
                   onFocus={scrollToCenter}
-                  onBlur={() => markTouched(year)}
+                  onBlur={() => {
+                    markTouched(year);
+                    setRejectedYear(null);
+                  }}
                   hasError={showError}
-                  help={showError ? RANGE_HELP : undefined}
+                  help={rejected ? NOT_NUMBER_HELP : showRange ? RANGE_HELP : undefined}
                 />
                 <TextField
                   variant="box"
