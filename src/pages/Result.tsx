@@ -74,6 +74,8 @@ export default function Result() {
       )}
 
       {view.kind === "empty" && (
+        <>
+        <Spacing size={96} />
         <EmptyState
           title="입력한 연봉이 부족해요"
           description="2개 연도 이상 입력하면 실질 인상률을 보여드려요"
@@ -83,6 +85,7 @@ export default function Result() {
             </Button>
           }
         />
+        </>
       )}
 
       {view.kind === "error" && (

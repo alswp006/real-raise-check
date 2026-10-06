@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { FocusEvent } from "react";
-import { Top, Paragraph, Spacing, ListRow, TextField, Button, AlertDialog, useToast } from "@toss/tds-mobile";
+import { Top, Paragraph, Spacing, TextField, Button, AlertDialog, useToast } from "@toss/tds-mobile";
 import { useNavigate } from "react-router-dom";
 import { generateHapticFeedback } from "@apps-in-toss/web-framework";
 import { ScreenScaffold } from "@/components/ScreenScaffold";
@@ -171,10 +171,8 @@ export default function Home() {
         const showError = slot.touched && isInvalid(slot);
         const isLast = idx === years.length - 1;
         return (
-          <ListRow
-            key={year}
-            contents={
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)", gap: 8 }}>
+          <div key={year}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)", gap: 8, alignItems: "start" }}>
                 <TextField
                   variant="box"
                   labelOption="sustain"
@@ -183,7 +181,7 @@ export default function Home() {
                   aria-label={`${year}년 세전 연봉(만원)`}
                   inputMode="numeric"
                   enterKeyHint="next"
-                  placeholder="예: 4,200"
+                  placeholder="4,200"
                   value={slot.amount === null ? "" : formatNumber(slot.amount)}
                   onChange={(e) => onAmountChange(year, e.target.value)}
                   onFocus={scrollToCenter}
@@ -202,12 +200,12 @@ export default function Home() {
                   onChange={(e) => onMemoChange(year, e.target.value)}
                   onFocus={scrollToCenter}
                 />
-              </div>
-            }
-          />
+            </div>
+            <Spacing size={12} />
+          </div>
         );
       })}
-      <Spacing size={24} />
+      <Spacing size={120} />
       <AlertDialog
         open={clearOpen}
         title="입력한 연봉을 모두 지울까요?"
