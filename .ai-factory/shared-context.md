@@ -205,6 +205,7 @@ export type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };
   lib/calculator.ts → imports: lib/types
   lib/entriesStore.ts → imports: data/cpi, lib/calculator, lib/types
   lib/shareCard.ts → imports: lib/types, lib/calculator, lib/utils
+  pages/Home.tsx → imports: components/ScreenScaffold, components/BottomCTA, data/cpi, lib/calculator, lib/entriesStore, lib/utils, lib/analytics, lib/types
   pages/Result.tsx → imports: components/ScreenScaffold, components/SummaryHero, components/Card, components/Amount, components/StateView, components/AdSlot, components/RaiseBars, components/ShareCardButton, data/cpi, lib/calculator, lib/entriesStore, lib/utils, lib/review, lib/types
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
 
@@ -215,8 +216,12 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0005: RaiseBars 컴포넌트 (명목 vs 실질 막대) (files: src/components/RaiseBars.tsx)
 - 0006: 공유 카드 (Canvas PNG + ShareCardButton) (files: src/lib/shareCard.ts, src/components/ShareCardButton.tsx)
 - 0007: Result Page (목표 연봉 + 비교 + 배너) (files: src/pages/Result.tsx)
+- 0008: Routing & Integration (App 라우트 + 검수 점검) (files: src/App.tsx)
 
 ## Available exports from existing files
+// src/App.tsx
+export default function App() {
+
 // src/components/AdSlot.tsx
 export function AdSlot({ adGroupId, className, variant, theme }: AdSlotProps) {
 
@@ -284,7 +289,7 @@ export function logImpression(name: string, extra?: LogFields): void {
 export function useScreenLog(page: string): void {
 
 // src/lib/calculator.ts
-export function calculate(entries: SalaryEntry[], cpi: CpiData, currentYear: number): 
+export function calculate(entries: Sal
 
 ## Memory Index (자동 학습 — 힌트로만 사용, 실제 코드 확인 필수)
 
