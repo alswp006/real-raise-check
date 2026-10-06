@@ -4,8 +4,9 @@ import { render, screen, fireEvent, within, waitFor, cleanup } from "@testing-li
 import { MemoryRouter } from "react-router-dom";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { generateHapticFeedback } from "@apps-in-toss/web-framework";
 import { mockTds, mockAppsInToss, mockOpenToast } from "@/__tests__/__helpers__/mocks";
+// 목 헬퍼가 SDK보다 먼저 평가돼야 아래 import가 목(스파이)을 받는다.
+import { generateHapticFeedback } from "@apps-in-toss/web-framework";
 import { __resetForTest } from "@/lib/entriesStore";
 import Home from "@/pages/Home";
 

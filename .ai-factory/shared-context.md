@@ -138,6 +138,7 @@ export type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };
     PageShell.tsx
     RaiseBars.tsx
     ScreenScaffold.tsx
+    ShareCardButton.tsx
     Sparkline.tsx
     StateView.tsx
     SummaryHero.tsx
@@ -155,6 +156,7 @@ export type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };
     entriesStore.ts
     review.ts
     share.ts
+    shareCard.ts
     storage.ts
     types.ts
     utils.ts
@@ -176,6 +178,7 @@ export type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };
 - entriesStore.ts: export function load(): LoadResult; export function save(entries: SalaryEntry[]): SaveResult; export function clear(): SaveResult; export function __resetForTest(): void
 - review.ts: export function requestReviewOnce(key: string = REVIEW_REQUESTED_KEY): void
 - share.ts: export interface ShareAppOptions; export async function shareApp(opts: ShareAppOptions): Promise<void>
+- shareCard.ts: export async function renderShareCard( result: AppResult, opts:; export async function saveShareImage(blob: Blob): Promise<"shared" | "downloaded" | "aborted">
 - storage.ts: export function getItem<T>(key: string): T | null; export function setItem<T>(key: string, value: T): void; export function removeItem(key: string): void
 - types.ts: export interface SalaryEntry; export interface CpiData; export interface PairRow; export interface AppResult; export type AmountInputResult = |; export interface SaveResult; export type LoadResult =
 - utils.ts: export function cn(...classes: (string | boolean | undefined | null)[]): string; export function formatNumber(n: number): string; export function formatCurrency(n: number, currency = 'KRW'): string
@@ -191,6 +194,7 @@ export type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };
 - PageShell.tsx: PageShell
 - RaiseBars.tsx: RaiseBars
 - ScreenScaffold.tsx: ScreenScaffold
+- ShareCardButton.tsx: ShareCardButton
 - Sparkline.tsx: Sparkline
 - StateView.tsx: EmptyState, LoadingState
 - SummaryHero.tsx: SummaryHero
@@ -200,6 +204,7 @@ export type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };
 ### Module Dependencies (import graph)
   lib/calculator.ts → imports: lib/types
   lib/entriesStore.ts → imports: data/cpi, lib/calculator, lib/types
+  lib/shareCard.ts → imports: lib/types, lib/calculator, lib/utils
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
 
 ## Already Implemented (do NOT duplicate or overwrite)
@@ -207,6 +212,7 @@ CRITICAL: Before creating any new function, type, or component, check the list a
 - 0002: Core Logic (계산기 순수 함수 + 테스트) (files: src/lib/calculator.ts, src/lib/calculator.test.ts, package.json)
 - 0003: entriesStore (localStorage + 메모리 사본) (files: src/lib/entriesStore.ts, src/lib/entriesStore.test.ts)
 - 0005: RaiseBars 컴포넌트 (명목 vs 실질 막대) (files: src/components/RaiseBars.tsx)
+- 0006: 공유 카드 (Canvas PNG + ShareCardButton) (files: src/lib/shareCard.ts, src/components/ShareCardButton.tsx)
 
 ## Available exports from existing files
 // src/App.tsx
@@ -244,6 +250,9 @@ export function RaiseBars({ rows }: { rows: PairRow[] }) {
 // src/components/ScreenScaffold.tsx
 export function ScreenScaffold({
 
+// src/components/ShareCardButton.tsx
+export function ShareCardButton({ result, showAmount }: { result: AppResult; showAmount: boolean }) {
+
 // src/components/Sparkline.tsx
 export function Sparkline({
 
@@ -276,9 +285,7 @@ export function logImpression(name: string, extra?: LogFields): void {
 export function useScreenLog(page: string): void {
 
 // src/lib/calculator.ts
-export function calculate(entries: SalaryEntry[], cpi: CpiData, currentYear: number): AppResult {
-export function parseAmountInput(raw: string): AmountInputResult {
-export functio
+export function calculate(entries: Sal
 
 ## Memory Index (자동 학습 — 힌트로만 사용, 실제 코드 확인 필수)
 
