@@ -75,16 +75,17 @@ export default function Result() {
 
       {view.kind === "empty" && (
         <>
-        <Spacing size={96} />
+        <div style={{ minHeight: "60dvh", display: "flex", flexDirection: "column", justifyContent: "center" }}>
         <EmptyState
           title="입력한 연봉이 부족해요"
-          description="2개 연도 이상 입력하면 실질 인상률을 보여드려요"
+          description={<>2개 연도 이상 입력하면<br />실질 인상률을 보여드려요</>}
           action={
             <Button variant="weak" aria-label="연봉 입력하러 가기" onClick={goHome}>
               연봉 입력하러 가기
             </Button>
           }
         />
+        </div>
         </>
       )}
 
