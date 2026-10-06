@@ -71,8 +71,56 @@ export type saveShareImageFn = (blob: Blob) => Promise<SaveResult>;
 
 ## Shared Types Contract (IMPORT these, do NOT redefine)
 ```typescript
-// Domain types — add your app-specific types here
-export {};
+// Domain types — SPEC Data Model
+
+export interface SalaryEntry {
+  year: number; // CPI 데이터에 있는 연도만
+  amountMan: number; // 세전 연봉, 만원 단위 정수 (1~100000)
+  memo?: string; // 최대 10자, 예: "이직"
+}
+
+export interface CpiData {
+  source: string; // "통계청 소비자물가지수 연간 상승률(KOSIS)"
+  asOf: string; // 데이터 수록 기준, 예: "2025년 연간"
+  rates: { year: number; ratePct: number }[]; // 전년 대비 %
+}
+
+export interface PairRow {
+  fromYear: number;
+  toYear: number;
+  gapYears: number;
+  fromMemo?: string;
+  toMemo?: string;
+  nominalPct: number;
+  realPct: number;
+}
+
+export interface AppResult {
+  rows: PairRow[];
+  cumulativeRealPct: number;
+  cumulativeNominalPct: number;
+  firstYear: number;
+  lastYear: number;
+  targetYear: number; // Y
+  keepLineWon: number; // A
+  restoreLineWon: number; // B
+  targetWon: number; // max(A,B), 만원 단위 올림
+  requiredRaisePct: number; // Z
+  staleYears: number; // n
+}
+
+// 연봉 입력 정제 결과
+export type AmountInputResult =
+  | { accept: false } // 숫자·콤마 외 문자 포함 → 직전 값 유지
+  | { accept: true; value: number | null }; // null = 빈 칸(개별 삭제)
+
+// 저장 결과
+export interface SaveResult {
+  ok: boolean;
+}
+
+// entriesStore.load() 결과
+export type LoadResult = { ok: true; entries: SalaryEntry[] } | { ok: false };
 
 ```
 
@@ -94,9 +142,12 @@ export {};
     SummaryHero.tsx
     TossPurchase.tsx
     TossRewardAd.tsx
+  data/
+    cpi.ts
   hooks/
   lib/
     analytics.ts
+    contract.ts
     review.ts
     share.ts
     storage.ts
@@ -115,9 +166,11 @@ export {};
 
 ### Exports (src/lib/)
 - analytics.ts: export type LogFields = Record<string, string | number | boolean | null>; export const DWELL_MS = 3000; export function fireAndForget(call: () => unknown): void; export function logScreen(page: string, extra?: LogFields): void; export function logClick(name: string, extra?: LogFields): void; export function logImpression(name: string, extra?: LogFields): void; export function useScreenLog(page: string): void
+- contract.ts: export type SalaryEntry =; export type CpiData =; export type PairRow =; export type AppResult =; export type AmountInputResult =; export type SaveResult =; export type LoadResult =; export type getSlotYearsFn = () => number[]
 - review.ts: export function requestReviewOnce(key: string = REVIEW_REQUESTED_KEY): void
 - share.ts: export interface ShareAppOptions; export async function shareApp(opts: ShareAppOptions): Promise<void>
 - storage.ts: export function getItem<T>(key: string): T | null; export function setItem<T>(key: string, value: T): void; export function removeItem(key: string): void
+- types.ts: export interface SalaryEntry; export interface CpiData; export interface PairRow; export interface AppResult; export type AmountInputResult = |; export interface SaveResult; export type LoadResult =
 - utils.ts: export function cn(...classes: (string | boolean | undefined | null)[]): string; export function formatNumber(n: number): string; export function formatCurrency(n: number, currency = 'KRW'): string
 
 ### Components (src/components/)
@@ -136,6 +189,9 @@ export {};
 - TossPurchase.tsx: TossPurchase
 - TossRewardAd.tsx: TossRewardAd
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
+
+## Already Implemented (do NOT duplicate or overwrite)
+- 0001: Types & Constants (types + CPI 번들) (files: src/lib/types.ts, src/data/cpi.ts)
 
 ## Available exports from existing files
 // src/App.tsx
@@ -187,6 +243,11 @@ export function TossPurchase({
 // src/components/TossRewardAd.tsx
 export function TossRewardAd({
 
+// src/data/cpi.ts
+export const cpi: CpiData = {
+export function getSlotYears(): number[] {
+export function getLatestCpiYear(): number {
+
 // src/lib/analytics.ts
 export type LogFields = Record<string, string | number | boolean | null>;
 export const DWELL_MS = 3000;
@@ -200,9 +261,7 @@ export function useScreenLog(page: string): void {
 export type SalaryEntry = { year: number; amountMan: number; memo?: string };
 export type CpiData = { [year: number]: number };
 export type PairRow = { year: number; memo?: string; nominalPct: number; realPct: number };
-export type AppResult = { entries: SalaryEntry[]; rows: PairRow[]; targetAmountMan: number; cumulativeRealPct: number };
-export type AmountInputResult = { ok: boolean; value?: number };
-expor
+export type AppResult = { entries: SalaryEntry[]; row
 
 ## Memory Index (자동 학습 — 힌트로만 사용, 실제 코드 확인 필수)
 

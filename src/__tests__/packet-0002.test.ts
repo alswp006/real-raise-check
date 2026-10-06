@@ -236,11 +236,9 @@ describe("Core Logic — 계산기 순수 함수", () => {
       };
 
       // currentYear > lastYear일 때 A 계산
-      const result = calculate(entries, cpi, 2026);
+      // L=2026, currentYear=2027 → n=1 → A = ceil(4400 × 1.02) = 4488만원
+      const result = calculate(entries, cpi, 2027);
 
-      // A = ceil(4400 × 1.02^0) = 4400만원
-      // 또는 currentYear = 2027일 때:
-      // A = ceil(4400 × 1.02^1) = 4488만원
       expect(result.keepLineWon).toBe(44880000);
     });
   });
@@ -323,7 +321,7 @@ describe("Core Logic — 계산기 순수 함수", () => {
   // AC8: Error Cases — 입력 검증 및 에러 처리
   // ============================================================================
   describe("AC-8[P0]: Error handling — throw on invalid inputs", () => {
-    const spyConsoleError = vi.spyOn(console, "error").mockImplementation();
+    const spyConsoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
     afterEach(() => {
       spyConsoleError.mockClear();
@@ -394,7 +392,8 @@ describe("Core Logic — 계산기 순수 함수", () => {
     });
 
     it("should handle zero", () => {
-      expect(formatSignedPct(0)).toBe("±0.0%");
+      // DoD: 반올림 결과가 0이면 '+0.0%'
+      expect(formatSignedPct(0)).toBe("+0.0%");
     });
   });
 
