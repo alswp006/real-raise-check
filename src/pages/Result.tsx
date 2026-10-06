@@ -182,7 +182,7 @@ function ResultBody({
 
       <Spacing size={24} />
       <ListRow
-        contents={<ListRow.Texts type="2RowTypeA" top="연봉 금액 표시" bottom="켜면 카드에 목표 연봉이 들어가요" />}
+        contents={<ListRow.Texts type="2RowTypeA" top="연봉 금액 표시" bottom="켜면 공유 카드에 금액이 들어가요" />}
         right={<Switch checked={showAmount} onChange={onToggleAmount} aria-label="공유 카드에 연봉 금액 표시" />}
       />
       <Spacing size={8} />

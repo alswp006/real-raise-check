@@ -1,73 +1,224 @@
-import { Top, Paragraph, Spacing, ListRow, Button } from '@toss/tds-mobile';
-import { useNavigate } from 'react-router-dom';
-import { ScreenScaffold } from '../components/ScreenScaffold';
-import { SummaryHero } from '../components/SummaryHero';
-import { Card } from '../components/Card';
+import { useRef, useState } from "react";
+import type { FocusEvent } from "react";
+import { Top, Paragraph, Spacing, ListRow, TextField, Button, AlertDialog, useToast } from "@toss/tds-mobile";
+import { useNavigate } from "react-router-dom";
+import { generateHapticFeedback } from "@apps-in-toss/web-framework";
+import { ScreenScaffold } from "@/components/ScreenScaffold";
+import { SubmitFooter } from "@/components/BottomCTA";
+import { getSlotYears } from "@/data/cpi";
+import { parseAmountInput, validateAmount } from "@/lib/calculator";
+import * as entriesStore from "@/lib/entriesStore";
+import { formatNumber } from "@/lib/utils";
+import { logClick } from "@/lib/analytics";
+import type { SalaryEntry } from "@/lib/types";
 
-/**
- * Golden Home page — 대시보드/탭-루트 골든 레퍼런스.
- *
- * 다른 페이지를 쓸 때 이 패턴을 모방하라:
- * - ScreenScaffold로 감싼다(raw fragment 골격 금지) — safe-area + 100dvh 자동 처리.
- * - 화면 최상단에 SummaryHero로 시각 앵커를 만든다('휑함'의 가장 큰 원인은 앵커 부재).
- *   데이터가 있으면 value에 <Amount value={n} unit="원" typography="t1" />로 핵심 숫자를 크게 박아라.
- * - 1차 진입 액션은 SummaryHero 카드 내부 버튼(display="block", 전체폭)에 둔다.
- *   → 화면 중앙 부유/좌측 글자폭 버튼 금지. 하단 TabBar가 있으면 SubmitFooter와 겹치므로 카드 안에.
- * - 핵심 정보는 raw <div>가 아니라 Card로 묶어 위계를 만든다.
- * - 하단 탭이 필요하면(2~5탭): bottom={<FloatingTabBar items={[{label,path}...]} />}.
- *   ('TDS TabBar'는 존재하지 않는다 — 직접 만들지 말고 FloatingTabBar를 써라.)
- * - 카피는 CLAUDE.md "카피 규칙 — AI 냄새 금지"를 따른다: 기능 나열식 홍보 문구·상투구·
- *   generic 버튼("시작하기") 금지. 이 파일의 예시 문구도 앱 맥락에 맞게 교체 대상이다.
- *
- * Scaffold tokens (replaced by scaffold-toss.ts at project creation):
- *   Real Raise Check -> the app's display name
- *   연봉 5% 올랐는데 물가 빼면 진짜로 얼마 오른 걸까? 3년 치 실질 연봉으로 확인    -> the one-line description
- */
+// 화면 상태는 슬롯별 {금액, 메모, touched}. 무효 금액은 화면에만 남고 저장되지 않는다.
+interface Slot {
+  amount: number | null;
+  memo: string;
+  touched: boolean;
+}
+type Slots = Record<number, Slot>;
 
-// ⚠ 이 목록은 골격 예시다 — 앱의 실제 콘텐츠(핵심 지표·최근 기록·바로가기)로 반드시 교체하라.
-// '간편한 사용/빠른 처리' 같은 기능 나열식 홍보 문구는 카피 규칙(CLAUDE.md "AI 냄새 금지") 위반이다.
-// 사용자가 이 화면에서 실제로 확인할 정보를 넣어라 — 아래처럼 데이터가 사는 행으로.
-const HIGHLIGHTS = [
-  { title: '오늘', description: '아직 기록이 없어요' },
-  { title: '이번 주', description: '기록 3건 · 평균 12분' },
-];
+const MIN_YEARS = 2;
+const MAX_MEMO_LENGTH = 10;
+// 7자리를 넘는 숫자는 범위 밖이 분명하다 — 정밀도 손실 전에 입력 단계에서 막는다.
+const MAX_AMOUNT_DIGITS = 7;
+const RANGE_HELP = "1만원 ~ 100,000만원 사이로 입력해 주세요";
+const SAVE_FAIL_TOAST = "저장하지 못했어요. 앱을 닫으면 입력이 사라질 수 있어요";
+const CLEAR_FAIL_TOAST = "지우지 못했어요. 다시 시도해 주세요";
+
+function haptic(type: "tickWeak" | "tickMedium") {
+  try {
+    Promise.resolve(generateHapticFeedback({ type })).catch(() => {});
+  } catch {
+    /* WebView 밖에서는 throw — 무시 */
+  }
+}
+
+function scrollToCenter(e: FocusEvent<HTMLInputElement>) {
+  try {
+    e.currentTarget.scrollIntoView({ block: "center" });
+  } catch {
+    /* 구형 WebView 대비 */
+  }
+}
+
+function emptySlots(years: number[]): Slots {
+  const slots: Slots = {};
+  for (const y of years) slots[y] = { amount: null, memo: "", touched: false };
+  return slots;
+}
+
+function initialSlots(years: number[]): Slots {
+  const slots = emptySlots(years);
+  const loaded = entriesStore.load();
+  if (!loaded.ok) return slots;
+  for (const e of loaded.entries) {
+    if (slots[e.year]) slots[e.year] = { amount: e.amountMan, memo: e.memo ?? "", touched: false };
+  }
+  return slots;
+}
+
+function toEntries(years: number[], slots: Slots): SalaryEntry[] {
+  const entries: SalaryEntry[] = [];
+  for (const year of years) {
+    const { amount, memo } = slots[year];
+    if (amount === null || !validateAmount(amount)) continue;
+    entries.push(memo ? { year, amountMan: amount, memo } : { year, amountMan: amount });
+  }
+  return entries;
+}
+
+const isInvalid = (s: Slot) => s.amount !== null && !validateAmount(s.amount);
 
 export default function Home() {
   const navigate = useNavigate();
+  const { openToast } = useToast();
+  const [years] = useState(getSlotYears);
+  const [slots, setSlots] = useState<Slots>(() => initialSlots(years));
+  const [hasSaved] = useState(() => toEntries(years, slots).length > 0);
+  const [clearOpen, setClearOpen] = useState(false);
+  const lastSaveOkRef = useRef(true);
+
+  const filledCount = toEntries(years, slots).length;
+  const hasInvalid = years.some((y) => isInvalid(slots[y]));
+  const hasAnyInput = years.some((y) => slots[y].amount !== null || slots[y].memo !== "");
+  const canCalc = filledCount >= MIN_YEARS && !hasInvalid;
+
+  // 바뀐 슬롯을 반영하고 곧바로 저장한다. 실패 Toast는 성공→실패로 넘어갈 때만 1회.
+  const commit = (next: Slots) => {
+    setSlots(next);
+    const { ok } = entriesStore.save(toEntries(years, next));
+    if (!ok && lastSaveOkRef.current) openToast(SAVE_FAIL_TOAST);
+    lastSaveOkRef.current = ok;
+  };
+
+  const onAmountChange = (year: number, raw: string) => {
+    const parsed = parseAmountInput(raw);
+    if (!parsed.accept) return;
+    if (parsed.value !== null && String(parsed.value).length > MAX_AMOUNT_DIGITS) return;
+    commit({ ...slots, [year]: { ...slots[year], amount: parsed.value } });
+  };
+
+  const onMemoChange = (year: number, memo: string) => {
+    if (memo.length > MAX_MEMO_LENGTH) return;
+    commit({ ...slots, [year]: { ...slots[year], memo } });
+  };
+
+  const markTouched = (year: number) => {
+    if (slots[year].touched) return;
+    setSlots((prev) => ({ ...prev, [year]: { ...prev[year], touched: true } }));
+  };
+
+  const openClearDialog = () => {
+    haptic("tickWeak");
+    setClearOpen(true);
+  };
+  const closeClearDialog = () => setClearOpen(false);
+  const confirmClear = () => {
+    haptic("tickMedium");
+    setClearOpen(false);
+    setSlots(emptySlots(years));
+    lastSaveOkRef.current = true;
+    if (!entriesStore.clear().ok) openToast(CLEAR_FAIL_TOAST);
+  };
+
+  const goResult = () => {
+    logClick("calculate_submit", { years: filledCount });
+    navigate("/result");
+  };
+
+  const hint =
+    filledCount < MIN_YEARS
+      ? "연봉을 2개 연도 이상 입력해 주세요"
+      : hasInvalid
+        ? "빨간 칸의 금액을 고쳐 주세요"
+        : undefined;
 
   return (
     <ScreenScaffold
-      top={<Top title={<Top.TitleParagraph>진짜연봉체크</Top.TitleParagraph>} />}
+      top={
+        <Top
+          title={<Top.TitleParagraph>진짜연봉체크</Top.TitleParagraph>}
+          right={
+            <Button
+              variant="weak"
+              size="small"
+              color="dark"
+              aria-label="전체 지우기"
+              disabled={!hasAnyInput}
+              onClick={openClearDialog}
+            >
+              전체 지우기
+            </Button>
+          }
+        />
+      }
+      bottom={<SubmitFooter label="결과 계산하기" onClick={goResult} disabled={!canCalc} hint={hint} />}
     >
-      {/* 시각 앵커: 헤드라인 + 카드 내 진입 버튼(부유 금지, display="block" 전체폭).
-          데이터 앱이면 value를 <Amount typography="t1" />(핵심 숫자)로 교체하라. */}
-      <SummaryHero
-        label="진짜연봉체크"
-        value={<Paragraph.Text typography="t2">연봉 5% 올랐는데 물가 빼면 진짜로 얼마 오른 걸까? 3년 치 실질 연봉으로 확인</Paragraph.Text>}
-        caption="로그인 없이 바로 쓸 수 있어요"
-        action={
-          // 라벨은 앱의 핵심 행동 동사로 교체하라 — "연봉 계산하기"/"기록 남기기" 등.
-          // generic "시작하기"/"확인"은 카피 규칙 위반. onClick도 실제 첫 화면 경로로.
-          <Button variant="fill" display="block" onClick={() => navigate('/')}>
-            첫 결과 보기
-          </Button>
-        }
-        testId="home-hero"
-      />
-
-      <Spacing size={24} />
-
-      {/* 핵심 정보는 Card로 묶기(raw div 금지) — 위계 생성 */}
-      <Card testId="home-highlights">
-        {HIGHLIGHTS.map((h, idx) => (
+      {!hasSaved && (
+        <>
+          <Spacing size={8} />
+          <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
+            최근 연봉을 입력하면 물가를 뺀 진짜 인상률을 알려드려요
+          </Paragraph.Text>
+        </>
+      )}
+      <Spacing size={16} />
+      {years.map((year, idx) => {
+        const slot = slots[year];
+        const showError = slot.touched && isInvalid(slot);
+        const isLast = idx === years.length - 1;
+        return (
           <ListRow
-            key={idx}
-            contents={<ListRow.Texts type="2RowTypeA" top={h.title} bottom={h.description} />}
+            key={year}
+            contents={
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)", gap: 8 }}>
+                <TextField
+                  variant="box"
+                  labelOption="sustain"
+                  label={`${year}년 연봉`}
+                  suffix="만원"
+                  aria-label={`${year}년 세전 연봉(만원)`}
+                  inputMode="numeric"
+                  enterKeyHint="next"
+                  placeholder="예: 4,200"
+                  value={slot.amount === null ? "" : formatNumber(slot.amount)}
+                  onChange={(e) => onAmountChange(year, e.target.value)}
+                  onFocus={scrollToCenter}
+                  onBlur={() => markTouched(year)}
+                  hasError={showError}
+                  help={showError ? RANGE_HELP : undefined}
+                />
+                <TextField
+                  variant="box"
+                  labelOption="sustain"
+                  label="메모"
+                  aria-label={`${year}년 메모`}
+                  enterKeyHint={isLast ? "done" : "next"}
+                  placeholder="이직"
+                  value={slot.memo}
+                  onChange={(e) => onMemoChange(year, e.target.value)}
+                  onFocus={scrollToCenter}
+                />
+              </div>
+            }
           />
-        ))}
-      </Card>
-
+        );
+      })}
       <Spacing size={24} />
+      <AlertDialog
+        open={clearOpen}
+        title="입력한 연봉을 모두 지울까요?"
+        onClose={closeClearDialog}
+        alertButton={
+          <>
+            <AlertDialog.AlertButton onClick={closeClearDialog}>닫기</AlertDialog.AlertButton>
+            <AlertDialog.AlertButton onClick={confirmClear}>지우기</AlertDialog.AlertButton>
+          </>
+        }
+      />
     </ScreenScaffold>
   );
 }

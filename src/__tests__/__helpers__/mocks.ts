@@ -634,6 +634,9 @@ export function mockTossRewardAd() {
 
 // ── react-router-dom ──
 // Preserve actual router + override useNavigate for assertion.
+// ⚠️ vi.mock은 호이스팅되므로 이 목은 mockRouter()를 부르지 않아도 이 파일을 import한 순간 걸린다.
+// 그래서 useNavigate는 mockNavigate에 **기록만 하고** Router 안이면 실제로도 이동한다(통과형 스파이) —
+// 라우트 통합 테스트(실제 이동)와 호출 단언 테스트가 같은 목 아래에서 함께 성립한다.
 export function mockRouter() {
   vi.mock("react-router-dom", async () => {
     const actual = await vi.importActual<typeof import("react-router-dom")>(
@@ -641,7 +644,14 @@ export function mockRouter() {
     );
     return {
       ...actual,
-      useNavigate: () => mockNavigate,
+      useNavigate: () => {
+        // Router 밖 렌더에서도 죽지 않게 — 그때는 기록만 한다(트리마다 고정이라 훅 순서는 안 바뀐다).
+        const real = actual.useInRouterContext() ? actual.useNavigate() : null;
+        return ((...args: Parameters<typeof mockNavigate>) => {
+          mockNavigate(...args);
+          return real?.(...(args as [string]));
+        }) as unknown as ReturnType<typeof actual.useNavigate>;
+      },
       useLocation: () => mockLocation,
     };
   });
